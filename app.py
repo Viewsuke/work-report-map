@@ -19,25 +19,35 @@ credentials = Credentials.from_service_account_info(creds_dict, scopes=[
 # ---------- LOAD GOOGLE SHEET ----------
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/1UCjvaM8A_bgCfRRELtkssWBkb_-N1JWWX8TgTunnifo"
 gc = gspread.authorize(credentials)
-sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
+
+@st.cache_data(ttl=300)  # cache for 5 minutes
+def load_data():
+    sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
+    data = sheet.get_all_records()
+    return pd.DataFrame(data)
+df = load_data()
 
 # ---------- DATE CONVERT ----------
-def convert_thai_date(date_str):
-    try:
-        day, month, year_time = date_str.split('/')
-        year, time = year_time.strip().split(' ')
-        year = str(int(year) - 543)
-        return pd.to_datetime(f"{day}/{month}/{year} {time}", dayfirst=True)
-    except:
-        return pd.NaT
+@st.cache_data(ttl=300)
+def load_data():
+    sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
+    df = pd.DataFrame(sheet.get_all_records())
 
-df['Stamp_Time'] = df['Stamp_Time'].apply(convert_thai_date)
-df['Lat'] = pd.to_numeric(df['Lat'], errors='coerce')
-df['Long'] = pd.to_numeric(df['Long'], errors='coerce')
-df = df.dropna(subset=['Lat', 'Long', 'Stamp_Time'])
+    def convert_thai_date(date_str):
+        try:
+            day, month, year_time = date_str.split('/')
+            year, time = year_time.strip().split(' ')
+            year = str(int(year) - 543)
+            return pd.to_datetime(f"{day}/{month}/{year} {time}", dayfirst=True)
+        except:
+            return pd.NaT
 
+    df['Stamp_Time'] = df['Stamp_Time'].apply(convert_thai_date)
+    df['Lat'] = pd.to_numeric(df['Lat'], errors='coerce')
+    df['Long'] = pd.to_numeric(df['Long'], errors='coerce')
+    df = df.dropna(subset=['Lat', 'Long', 'Stamp_Time'])
+
+    return df
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
 
@@ -86,3 +96,4 @@ else:
         ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=700)
+
