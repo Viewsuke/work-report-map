@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import gspread
 from google.oauth2.service_account import Credentials
 import json
-st.cache_data.clear() #Force Clear Cache
+
 st.set_page_config(layout="wide")
 st.title("📍 Work Report Map Dashboard")
 
@@ -109,6 +109,7 @@ else:
         ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=700)
+
 
 
 
