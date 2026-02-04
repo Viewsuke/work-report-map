@@ -6,7 +6,7 @@ from streamlit_folium import st_folium
 import gspread
 from google.oauth2.service_account import Credentials
 import json
-
+st.cache_data.clear() #Force Clear Cache
 st.set_page_config(layout="wide")
 st.title("📍 Work Report Map Dashboard")
 
@@ -23,42 +23,48 @@ gc = gspread.authorize(credentials)
 @st.cache_data(ttl=300)  # cache for 5 minutes
 def load_data():
     sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
-    data = sheet.get_all_records()
-    return pd.DataFrame(data)
-df = load_data()
-
-# ---------- DATE CONVERT ----------
-@st.cache_data(ttl=300)
-def load_data():
-    sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
     df = pd.DataFrame(sheet.get_all_records())
 
     def convert_thai_date(date_str):
         try:
+            if not date_str:
+                return None
             day, month, year_time = date_str.split('/')
             year, time = year_time.strip().split(' ')
             year = str(int(year) - 543)
             return f"{day}/{month}/{year} {time}"
-        except:
+        except Exception:
             return None
 
-    # Convert date string first
-    df['Stamp_Time'] = df['Stamp_Time'].apply(convert_thai_date)
+    # Convert Thai year format
+    df['Stamp_Time'] = df['Stamp_Time'].astype(str).apply(convert_thai_date)
 
-    # THEN convert to datetime safely
-    df['Stamp_Time'] = pd.to_datetime(df['Stamp_Time'], dayfirst=True, errors='coerce')
+    # Force datetime
+    df['Stamp_Time'] = pd.to_datetime(
+        df['Stamp_Time'],
+        format="%d/%m/%Y %H:%M",
+        errors='coerce'
+    )
 
+    # Drop ANY rows still broken
+    df = df.dropna(subset=['Stamp_Time'])
+
+    # Convert coordinates
     df['Lat'] = pd.to_numeric(df['Lat'], errors='coerce')
     df['Long'] = pd.to_numeric(df['Long'], errors='coerce')
-
-    df = df.dropna(subset=['Lat', 'Long', 'Stamp_Time'])
+    df = df.dropna(subset=['Lat', 'Long'])
 
     return df
+
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
 
 user_options = ['ทั้งหมด'] + sorted(df['User'].unique())
 selected_user = st.sidebar.selectbox("User", user_options)
+
+if not pd.api.types.is_datetime64_any_dtype(df['Stamp_Time']):
+    st.error("Stamp_Time is not datetime — check data format")
+    st.stop()
 
 min_date = df['Stamp_Time'].dt.date.min()
 max_date = df['Stamp_Time'].dt.date.max()
@@ -102,5 +108,6 @@ else:
         ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=700)
+
 
 
