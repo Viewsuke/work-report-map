@@ -38,13 +38,19 @@ def load_data():
             day, month, year_time = date_str.split('/')
             year, time = year_time.strip().split(' ')
             year = str(int(year) - 543)
-            return pd.to_datetime(f"{day}/{month}/{year} {time}", dayfirst=True)
+            return f"{day}/{month}/{year} {time}"
         except:
-            return pd.NaT
+            return None
 
+    # Convert date string first
     df['Stamp_Time'] = df['Stamp_Time'].apply(convert_thai_date)
+
+    # THEN convert to datetime safely
+    df['Stamp_Time'] = pd.to_datetime(df['Stamp_Time'], dayfirst=True, errors='coerce')
+
     df['Lat'] = pd.to_numeric(df['Lat'], errors='coerce')
     df['Long'] = pd.to_numeric(df['Long'], errors='coerce')
+
     df = df.dropna(subset=['Lat', 'Long', 'Stamp_Time'])
 
     return df
@@ -96,4 +102,5 @@ else:
         ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=700)
+
 
