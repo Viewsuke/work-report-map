@@ -1,0 +1,88 @@
+import streamlit as st
+import pandas as pd
+import folium
+from folium.plugins import HeatMap, MarkerCluster
+from streamlit_folium import st_folium
+import gspread
+from google.oauth2.service_account import Credentials
+import json
+
+st.set_page_config(layout="wide")
+st.title("📍 Work Report Map Dashboard")
+
+# ---------- LOAD GOOGLE CREDENTIAL FROM STREAMLIT SECRET ----------
+creds_dict = st.secrets["gcp_service_account"]
+credentials = Credentials.from_service_account_info(creds_dict, scopes=[
+    "https://www.googleapis.com/auth/spreadsheets.readonly"
+])
+
+# ---------- LOAD GOOGLE SHEET ----------
+spreadsheet_url = "https://docs.google.com/spreadsheets/d/1UCjvaM8A_bgCfRRELtkssWBkb_-N1JWWX8TgTunnifo"
+gc = gspread.authorize(credentials)
+sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
+data = sheet.get_all_records()
+df = pd.DataFrame(data)
+
+# ---------- DATE CONVERT ----------
+def convert_thai_date(date_str):
+    try:
+        day, month, year_time = date_str.split('/')
+        year, time = year_time.strip().split(' ')
+        year = str(int(year) - 543)
+        return pd.to_datetime(f"{day}/{month}/{year} {time}", dayfirst=True)
+    except:
+        return pd.NaT
+
+df['Stamp_Time'] = df['Stamp_Time'].apply(convert_thai_date)
+df['Lat'] = pd.to_numeric(df['Lat'], errors='coerce')
+df['Long'] = pd.to_numeric(df['Long'], errors='coerce')
+df = df.dropna(subset=['Lat', 'Long', 'Stamp_Time'])
+
+# ---------- SIDEBAR FILTERS ----------
+st.sidebar.header("🔎 Filter")
+
+user_options = ['ทั้งหมด'] + sorted(df['User'].unique())
+selected_user = st.sidebar.selectbox("User", user_options)
+
+min_date = df['Stamp_Time'].dt.date.min()
+max_date = df['Stamp_Time'].dt.date.max()
+start_dt, end_dt = st.sidebar.date_input("Date Range", [min_date, max_date])
+
+equipment_keyword = st.sidebar.text_input("อุปกรณ์ที่ใช้ contains", "ฟิว")
+
+# ---------- FILTER DATA ----------
+mask = (df['Stamp_Time'].dt.date >= start_dt) & (df['Stamp_Time'].dt.date <= end_dt)
+filtered_df = df[mask].copy()
+
+if selected_user != 'ทั้งหมด':
+    filtered_df = filtered_df[filtered_df['User'] == selected_user]
+
+if equipment_keyword.strip():
+    filtered_df = filtered_df[
+        filtered_df['อุปกรณ์ที่ใช้'].astype(str).str.contains(equipment_keyword, na=False)
+    ]
+
+st.write(f"📊 Results: **{len(filtered_df)}** points")
+
+# ---------- BUILD MAP ----------
+if filtered_df.empty:
+    m = folium.Map(location=[13.7563, 100.5018], zoom_start=6)
+else:
+    m = folium.Map(location=[filtered_df['Lat'].mean(), filtered_df['Long'].mean()], zoom_start=6)
+
+    HeatMap(filtered_df[['Lat', 'Long']].values.tolist(), radius=15).add_to(m)
+    marker_cluster = MarkerCluster().add_to(m)
+
+    for _, row in filtered_df.iterrows():
+        popup_html = f"""
+        <b>User:</b> {row['User']}<br>
+        <b>สถานที่:</b> {row['สถานที่']}<br>
+        <b>เวลา:</b> {row['Stamp_Time']}<br>
+        <b>อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
+        """
+        folium.Marker(
+            [row['Lat'], row['Long']],
+            popup=popup_html
+        ).add_to(marker_cluster)
+
+st_folium(m, width=1200, height=700)
