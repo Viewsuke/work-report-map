@@ -55,7 +55,8 @@ def load_data():
     df = df.dropna(subset=['Lat', 'Long'])
 
     return df
-
+    
+df = load_data()
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
 
@@ -108,6 +109,7 @@ else:
         ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=700)
+
 
 
 
