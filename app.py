@@ -101,42 +101,42 @@ else:
 
     for _, row in filtered_df.iterrows():
     # Constructing a styled HTML popup
-    popup_html = f"""
-    <div style="
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-        font-size: 12px; 
-        color: #333; 
-        min-width: 200px;
-        line-height: 1.5;
-    ">
+        popup_html = f"""
         <div style="
-            font-size: 14px; 
-            font-weight: bold; 
-            color: #1f77b4; 
-            border-bottom: 2px solid #1f77b4; 
-            margin-bottom: 8px; 
-            padding-bottom: 4px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-size: 12px; 
+            color: #333; 
+            min-width: 200px;
+            line-height: 1.5;
         ">
-            📍 {row['สถานที่']}
+            <div style="
+                font-size: 14px; 
+                font-weight: bold; 
+                color: #1f77b4; 
+                border-bottom: 2px solid #1f77b4; 
+                margin-bottom: 8px; 
+                padding-bottom: 4px;
+            ">
+                📍 {row['สถานที่']}
+            </div>
+            
+            <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
+                <b style="color: #666;">👤 User:</b> {row['User']}
+            </div>
+            
+            <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
+                <b style="color: #666;">🕒 เวลา:</b> {row['Stamp_Time'].strftime('%d/%m/%Y %H:%M')}
+            </div>
+            
+            <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
+                <b style="color: #666;">⚠️ สาเหตุ:</b> {row['สาเหตุ']}
+            </div>
+            
+            <div style="padding: 3px 0;">
+                <b style="color: #666;">🛠️ อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
+            </div>
         </div>
-        
-        <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
-            <b style="color: #666;">👤 User:</b> {row['User']}
-        </div>
-        
-        <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
-            <b style="color: #666;">🕒 เวลา:</b> {row['Stamp_Time'].strftime('%d/%m/%Y %H:%M')}
-        </div>
-        
-        <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
-            <b style="color: #666;">⚠️ สาเหตุ:</b> {row['สาเหตุ']}
-        </div>
-        
-        <div style="padding: 3px 0;">
-            <b style="color: #666;">🛠️ อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
-        </div>
-    </div>
-    """
+        """
     
     # Create the popup and set the max_width to prevent cramping
     iframe = folium.IFrame(popup_html, width=220, height=160)
@@ -148,6 +148,7 @@ else:
     ).add_to(marker_cluster)
 
 st_folium(m, width=1200, height=800)
+
 
 
 
