@@ -127,7 +127,8 @@ else:
         ).add_to(marker_cluster)
 
 # Use a unique key based on the length of filtered data to ensure refresh
-st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}")
+st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}",returned_objects=[])
+
 
 
 
