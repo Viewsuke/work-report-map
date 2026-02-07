@@ -5,59 +5,74 @@ from folium.plugins import HeatMap, MarkerCluster
 from streamlit_folium import st_folium
 import gspread
 from google.oauth2.service_account import Credentials
+import json
 
-# 1. Page Config and Title (Requirement 3)
 st.set_page_config(layout="wide")
 st.title("📍 Chiangrai Outage map incident report")
 
-# ---------- LOAD GOOGLE CREDENTIAL ----------
+# ---------- LOAD GOOGLE CREDENTIAL FROM STREAMLIT SECRET ----------
 creds_dict = st.secrets["gcp_service_account"]
 credentials = Credentials.from_service_account_info(creds_dict, scopes=[
     "https://www.googleapis.com/auth/spreadsheets.readonly"
 ])
 
-# ---------- LOAD DATA ----------
+# ---------- LOAD GOOGLE SHEET ----------
 spreadsheet_url = "https://docs.google.com/spreadsheets/d/1UCjvaM8A_bgCfRRELtkssWBkb_-N1JWWX8TgTunnifo"
 gc = gspread.authorize(credentials)
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300)  # cache for 5 minutes
 def load_data():
     sheet = gc.open_by_url(spreadsheet_url).worksheet("Report")
     df = pd.DataFrame(sheet.get_all_records())
 
     def convert_thai_date(date_str):
         try:
-            if not date_str: return None
+            if not date_str:
+                return None
             day, month, year_time = date_str.split('/')
             year, time = year_time.strip().split(' ')
-            year = str(int(year) - 543) # Convert Buddhist year to Gregorian
+            year = str(int(year) - 543)
             return f"{day}/{month}/{year} {time}"
-        except:
+        except Exception:
             return None
 
+    # Convert Thai year format
     df['Stamp_Time'] = df['Stamp_Time'].astype(str).apply(convert_thai_date)
-    df['Stamp_Time'] = pd.to_datetime(df['Stamp_Time'], format="%d/%m/%Y %H:%M", errors='coerce')
+
+    # Force datetime
+    df['Stamp_Time'] = pd.to_datetime(
+        df['Stamp_Time'],
+        format="%d/%m/%Y %H:%M",
+        errors='coerce'
+    )
+
+    # Drop ANY rows still broken
     df = df.dropna(subset=['Stamp_Time'])
+
+    # Convert coordinates
     df['Lat'] = pd.to_numeric(df['Lat'], errors='coerce')
     df['Long'] = pd.to_numeric(df['Long'], errors='coerce')
     df = df.dropna(subset=['Lat', 'Long'])
+
     return df
-
+    
 df = load_data()
-
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
 
-# Requirement 2: Separate Date Blocks with DD/MM/YYYY format
+user_options = ['ทั้งหมด'] + sorted(df['User'].unique())
+selected_user = st.sidebar.selectbox("User", user_options)
+
+if not pd.api.types.is_datetime64_any_dtype(df['Stamp_Time']):
+    st.error("Stamp_Time is not datetime — check data format")
+    st.stop()
+
 min_date = df['Stamp_Time'].dt.date.min()
 max_date = df['Stamp_Time'].dt.date.max()
 
 st.sidebar.write("Select Date Range")
-start_dt = st.sidebar.date_input("Start Date", min_date, format="DD/MM/YYYY")
-end_dt = st.sidebar.date_input("End Date", max_date, format="DD/MM/YYYY")
-
-user_options = ['ทั้งหมด'] + sorted(df['User'].unique())
-selected_user = st.sidebar.selectbox("User", user_options)
+start_dt = st.sidebar.date_input("Start Date", min_date)
+end_dt = st.sidebar.date_input("End Date", max_date)
 
 equipment_keyword = st.sidebar.text_input("อุปกรณ์ที่ใช้ contains", "ฟิว")
 
@@ -73,32 +88,67 @@ if equipment_keyword.strip():
         filtered_df['อุปกรณ์ที่ใช้'].astype(str).str.contains(equipment_keyword, na=False)
     ]
 
-# ---------- REQUIREMENT 1: ACCUMULATE FREQUENCY ----------
-# Group by exact coordinates to count how many incidents happened at that point
-freq_df = filtered_df.groupby(['Lat', 'Long', 'สถานที่']).size().reset_index(name='incident_count')
+st.write(f"📊 Results: **{len(filtered_df)}** points")
 
-st.write(f"📊 Total Incidents Found: **{len(filtered_df)}** across **{len(freq_df)}** unique locations.")
-
-# ---------- BUILD MAP (Requirement 4: Large Display) ----------
-if freq_df.empty:
-    m = folium.Map(location=[19.9105, 99.8406], zoom_start=9) # Centered on Chiang Rai
+# ---------- BUILD MAP ----------
+if filtered_df.empty:
+    m = folium.Map(location=[13.7563, 100.5018], zoom_start=6)
 else:
-    m = folium.Map(location=[freq_df['Lat'].mean(), freq_df['Long'].mean()], zoom_start=9)
+    m = folium.Map(location=[filtered_df['Lat'].mean(), filtered_df['Long'].mean()], zoom_start=6)
 
-    for _, row in freq_df.iterrows():
-        # Create a label with the count
-        # We use a DivIcon to show the number on the map
-        folium.Marker(
-            location=[row['Lat'], row['Long']],
-            icon=folium.DivIcon(
-                html=f"""<div style="font-family: sans-serif; color: white; background-color: red; 
-                        border-radius: 50%; width: 25px; height: 25px; display: flex; 
-                        align-items: center; justify-content: center; font-weight: bold; 
-                        border: 2px solid white; box-shadow: 0px 0px 5px black;">
-                        {row['incident_count']}</div>"""
-            ),
-            popup=f"<b>Location:</b> {row['สถานที่']}<br><b>Incidents:</b> {row['incident_count']}"
-        ).add_to(m)
+    HeatMap(filtered_df[['Lat', 'Long']].values.tolist(), radius=15).add_to(m)
+    marker_cluster = MarkerCluster().add_to(m)
 
-# Display map at ~80% width/height
-st_folium(m, width=1400, height=800, use_container_width=True)
+    for _, row in filtered_df.iterrows():
+    # Constructing a styled HTML popup
+    popup_html = f"""
+    <div style="
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        font-size: 12px; 
+        color: #333; 
+        min-width: 200px;
+        line-height: 1.5;
+    ">
+        <div style="
+            font-size: 14px; 
+            font-weight: bold; 
+            color: #1f77b4; 
+            border-bottom: 2px solid #1f77b4; 
+            margin-bottom: 8px; 
+            padding-bottom: 4px;
+        ">
+            📍 {row['สถานที่']}
+        </div>
+        
+        <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
+            <b style="color: #666;">👤 User:</b> {row['User']}
+        </div>
+        
+        <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
+            <b style="color: #666;">🕒 เวลา:</b> {row['Stamp_Time'].strftime('%d/%m/%Y %H:%M')}
+        </div>
+        
+        <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
+            <b style="color: #666;">⚠️ สาเหตุ:</b> {row['สาเหตุ']}
+        </div>
+        
+        <div style="padding: 3px 0;">
+            <b style="color: #666;">🛠️ อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
+        </div>
+    </div>
+    """
+    
+    # Create the popup and set the max_width to prevent cramping
+    iframe = folium.IFrame(popup_html, width=220, height=160)
+    popup = folium.Popup(iframe, max_width=250)
+
+    folium.Marker(
+        [row['Lat'], row['Long']],
+        popup=popup
+    ).add_to(marker_cluster)
+
+st_folium(m, width=1200, height=800)
+
+
+
+
