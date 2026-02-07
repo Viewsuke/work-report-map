@@ -60,8 +60,17 @@ df = load_data()
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
 
-user_options = ['ทั้งหมด'] + sorted(df['User'].unique())
-selected_user = st.sidebar.selectbox("User", user_options)
+#Password Protection for User Filter
+ADMIN_PASSWORD = "0865356474" # Change this!
+password_input = st.sidebar.text_input("Admin Password (to filter by User)", type="password")
+
+selected_user = 'ทั้งหมด'
+if password_input == ADMIN_PASSWORD:
+    st.sidebar.success("Access Granted")
+    user_options = ['ทั้งหมด'] + sorted(df['User'].unique().tolist())
+    selected_user = st.sidebar.selectbox("Filter by User", user_options)
+elif password_input != "":
+    st.sidebar.error("Incorrect Password")
 
 if not pd.api.types.is_datetime64_any_dtype(df['Stamp_Time']):
     st.error("Stamp_Time is not datetime — check data format")
@@ -118,7 +127,7 @@ else:
         """
         
         # Create IFrame and Marker (INSIDE the loop)
-        iframe = folium.IFrame(popup_html, width=220, height=160)
+        iframe = folium.IFrame(popup_html, width=220, height=120)
         popup = folium.Popup(iframe, max_width=250)
 
         folium.Marker(
@@ -128,6 +137,7 @@ else:
 
 # Use a unique key based on the length of filtered data to ensure refresh
 st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}",returned_objects=[])
+
 
 
 
