@@ -92,62 +92,43 @@ st.write(f"📊 Results: **{len(filtered_df)}** points")
 
 # ---------- BUILD MAP ----------
 if filtered_df.empty:
-    m = folium.Map(location=[13.7563, 100.5018], zoom_start=6)
+    m = folium.Map(location=[19.9105, 99.8406], zoom_start=9) # Default to Chiang Rai coords
 else:
-    m = folium.Map(location=[filtered_df['Lat'].mean(), filtered_df['Long'].mean()], zoom_start=6)
+    # Center map on the data
+    m = folium.Map(location=[filtered_df['Lat'].mean(), filtered_df['Long'].mean()], zoom_start=10)
 
+    # 1. Add Heatmap
     HeatMap(filtered_df[['Lat', 'Long']].values.tolist(), radius=15).add_to(m)
+    
+    # 2. Add Marker Cluster
     marker_cluster = MarkerCluster().add_to(m)
 
     for _, row in filtered_df.iterrows():
-    # Constructing a styled HTML popup
+        # Constructing the HTML popup (INSIDE the loop)
         popup_html = f"""
-        <div style="
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            font-size: 12px; 
-            color: #333; 
-            min-width: 200px;
-            line-height: 1.5;
-        ">
-            <div style="
-                font-size: 14px; 
-                font-weight: bold; 
-                color: #1f77b4; 
-                border-bottom: 2px solid #1f77b4; 
-                margin-bottom: 8px; 
-                padding-bottom: 4px;
-            ">
+        <div style="font-family: sans-serif; font-size: 12px; min-width: 200px;">
+            <div style="font-weight: bold; color: #1f77b4; border-bottom: 2px solid #1f77b4; margin-bottom: 8px;">
                 📍 {row['สถานที่']}
             </div>
-            
-            <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
-                <b style="color: #666;">👤 User:</b> {row['User']}
-            </div>
-            
-            <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
-                <b style="color: #666;">🕒 เวลา:</b> {row['Stamp_Time'].strftime('%d/%m/%Y %H:%M')}
-            </div>
-            
-            <div style="border-bottom: 1px solid #eee; padding: 3px 0;">
-                <b style="color: #666;">⚠️ สาเหตุ:</b> {row['สาเหตุ']}
-            </div>
-            
-            <div style="padding: 3px 0;">
-                <b style="color: #666;">🛠️ อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
-            </div>
+            <b>👤 User:</b> {row['User']}<br>
+            <b>🕒 เวลา:</b> {row['Stamp_Time'].strftime('%d/%m/%Y %H:%M')}<br>
+            <b>⚠️ สาเหตุ:</b> {row['สาเหตุ']}<br>
+            <b>🛠️ อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
         </div>
         """
-    
-    # Create the popup and set the max_width to prevent cramping
-    iframe = folium.IFrame(popup_html, width=220, height=160)
-    popup = folium.Popup(iframe, max_width=250)
+        
+        # Create IFrame and Marker (INSIDE the loop)
+        iframe = folium.IFrame(popup_html, width=220, height=160)
+        popup = folium.Popup(iframe, max_width=250)
 
-    folium.Marker(
-        [row['Lat'], row['Long']],
-        popup=popup
-    ).add_to(marker_cluster)
+        folium.Marker(
+            location=[row['Lat'], row['Long']],
+            popup=popup
+        ).add_to(marker_cluster)
 
-st_folium(m, width=1200, height=800)
+# Use a unique key based on the length of filtered data to ensure refresh
+st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}")
+
 
 
 
