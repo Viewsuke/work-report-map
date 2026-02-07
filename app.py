@@ -126,10 +126,9 @@ else:
         </div>
         """
         
-        # Create IFrame and Marker (INSIDE the loop)
-        iframe = folium.IFrame(popup_html, width=220, height=120)
-        popup = folium.Popup(iframe, max_width=250)
-
+        # Create the Popup directly from the HTML string (WITHOUT IFrame)
+        popup = folium.Popup(popup_html, max_width=250) 
+        
         folium.Marker(
             location=[row['Lat'], row['Long']],
             popup=popup
@@ -137,11 +136,3 @@ else:
 
 # Use a unique key based on the length of filtered data to ensure refresh
 st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}",returned_objects=[])
-
-
-
-
-
-
-
-
