@@ -6,6 +6,7 @@ from streamlit_folium import st_folium
 import gspread
 from google.oauth2.service_account import Credentials
 import json
+import os
 
 st.set_page_config(layout="wide")
 st.title("📍 Chiangrai Outage map incident report")
@@ -56,6 +57,14 @@ def load_data():
 
     return df
     
+# ---------- AOJ ----------
+@st.cache_data
+def load_aoj():
+    """โหลดขอบเขต กฟจ.เชียงราย (GeoJSON ที่ตัดมาจาก AOJ.kmz)"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chiangrai_aoj.geojson")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
 df = load_data()
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
@@ -84,6 +93,9 @@ start_dt = st.sidebar.date_input("Start Date", min_date)
 end_dt = st.sidebar.date_input("End Date", max_date)
 
 equipment_keyword = st.sidebar.text_input("อุปกรณ์ที่ใช้ contains", "ฟิว")
+
+# Toggle: แสดง/ซ่อน ขอบเขต กฟจ.เชียงราย
+show_aoj = st.sidebar.checkbox("🗺️ แสดงขอบเขต กฟจ.เชียงราย", value=True)
 
 # ---------- FILTER DATA ----------
 mask = (df['Stamp_Time'].dt.date >= start_dt) & (df['Stamp_Time'].dt.date <= end_dt)
@@ -125,7 +137,7 @@ else:
             <b>🛠️ อุปกรณ์:</b> {row.get('อุปกรณ์ที่ใช้', '-')}
         </div>
         """
-        
+    
         # Create the Popup directly from the HTML string (WITHOUT IFrame)
         popup = folium.Popup(popup_html, max_width=250) 
         
@@ -133,6 +145,25 @@ else:
             location=[row['Lat'], row['Long']],
             popup=popup
         ).add_to(marker_cluster)
+
+# ---------- AOJ BOUNDARY (toggle) ----------
+if show_aoj:
+    folium.GeoJson(
+        aoj_geojson,
+        name="ขอบเขต กฟจ.เชียงราย",
+        style_function=lambda x: {
+            "color": "#d62728",       # สีเส้นกรอบ
+            "weight": 3,
+            "fillColor": "#d62728",
+            "fillOpacity": 0.05,      # โปร่งใส ไม่บังจุด/heatmap
+        },
+        tooltip="กฟจ.เชียงราย",
+        interactive=False,            # ไม่ให้กรอบบังการคลิก marker
+    ).add_to(m)
+ 
+    # ถ้าไม่มีข้อมูล ให้ซูมพอดีกรอบ
+    if filtered_df.empty:
+        m.fit_bounds([[19.80, 99.47], [20.10, 99.98]])
 
 # Use a unique key based on the length of filtered data to ensure refresh
 st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}",returned_objects=[])
