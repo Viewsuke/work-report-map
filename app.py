@@ -66,6 +66,8 @@ def load_aoj():
         return json.load(f)
 
 df = load_data()
+aoj_geojson = load_aoj()
+
 # ---------- SIDEBAR FILTERS ----------
 st.sidebar.header("🔎 Filter")
 
@@ -166,4 +168,10 @@ if show_aoj:
         m.fit_bounds([[19.80, 99.47], [20.10, 99.98]])
 
 # Use a unique key based on the length of filtered data to ensure refresh
-st_folium(m, width=1200, height=800, key=f"map_{len(filtered_df)}",returned_objects=[])
+st_folium(
+    m,
+    width=1200,
+    height=800,
+    key=f"map_{len(filtered_df)}_{show_aoj}",
+    returned_objects=[],
+)
